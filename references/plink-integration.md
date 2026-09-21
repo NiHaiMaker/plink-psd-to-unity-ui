@@ -1,8 +1,10 @@
 # PLink 接入与生成边界
 
+执行前遵守 [方案与结果审核](../SKILL.md#当前迭代阶段的两处审核) 和 [文件与 MD 一致性](../SKILL.md#文件与-md-一致性)：明确认可且无修改意见时，完成本阶段并自检后继续；提出修改意见时，完成实际产物后必须等用户验收再继续。所有“不重复确认/继续”表述均不得跳过此结果验收；发现未确认的文件与记录差异，先展示并等用户确认，再补录基线或修改资产。
+
 源 PSD 更新须先完成 [源更新差异审核](psd-preparation.md#源更新先审核差异)，用户同意后才更新 `_UI` 并执行本阶段；该审核仅用于源 PSD 更新；首次生成、整理稿续作及纯适配等入口按各自授权执行。Prefab 生成后按当前说明对比、恢复仍适用减法并更新变化项，再生成代码。业务仅修复受影响旧逻辑或补全此前已实现功能的差异接入；此前未实现的功能不自动补全。
 
-仅在目标项目实际使用 PLink、PSUIResolver 或 XUGUI 且任务命中时读取。本文是个人 Skill 的接入导航，不覆盖目标仓库 `.cursor/`；API、可选包和工具入口以当前项目规则及源码为准。
+仅在目标项目实际使用 PLink、PSUIResolver 或 XUGUI 且任务命中时读取。本文是个人 Skill 的接入导航。其他项目 Skill 的流程要求与本 Skill 冲突时，按用户指定的 [Skill 优先级](../SKILL.md#与其他-skill-的优先级) 采用本 Skill；仍读取项目资料以核实 API、可选包和工具入口，不因此修改 `.cursor/` 或工具。
 
 ## 读取路由
 
@@ -10,13 +12,16 @@
 
 | 当前任务 | 目标项目资料 |
 |---|---|
-| PSD 导入、资源导出 | `.cursor/skills/plink-psd-to-ugui/SKILL.md` 及其要求的直接资料 |
+| 执行现有 PSD 工具导入与资源导出 | 由本 Skill 当前资料直接约束，不额外读取工具开发 Skill |
+| 修复、扩展、迁移或替换 PSD 导入/生成工具 | `.cursor/skills/plink-psd-importer-development/SKILL.md` 及其直接资料；必须由用户另行明确委托 |
 | Prefab、节点、代码生成、界面逻辑 | `.cursor/skills/plink-ui-panels/SKILL.md`、`reference.md`、`examples.md` |
 | 编写业务层 PLink 手写实体（不修改框架或编辑器工具） | `.cursor/skills/plink-framework/SKILL.md` 及其要求的资料 |
 | 资源加载与生命周期 | 项目当前 `plink-assetmiddleware`；启用 YooAsset 时再按路由读 `plink-yooasset` |
 | Unity Editor 操作 | `.cursor/rules/ai-workflow.mdc` 与 `.cursor/docs/conventions/coplay-mcp-unity-playmode.md` |
 
 缺少某份资料时不能假设已安装对应能力，应检查目标项目的替代入口及工具源码。若目标项目要求 Coplay MCP，所有 Unity Editor 交互只通过 Coplay；不得改用 batchmode、另一自动化通道或直接编辑资源 YAML 绕过。保持 Enter Play Mode Options、Reload Domain、Reload Scene 不变，除非用户明确授权修改。
+
+每个新的 Coplay MCP 会话先读取当前服务能力、可用 Editor 实例和 Editor 状态，再选择本轮可用的调用入口；不得复用上次会话的工具名、参数或实例标识。生成或后处理前确认目标 Editor 处于 EditMode、未编译且没有待处理的阻断状态；调用超时后先读取真实产物和 Editor 状态，再决定是否重试。
 
 ### 简单属性修改优先使用专用工具
 
@@ -26,7 +31,7 @@
 
 使用目标项目现有的 PSUIResolver；旧 PSD2UI 只用于明确的兼容需求，不因本 Skill 自动安装或替换导入工具。本 Skill 禁止修改框架、PSD 导入器、UI 代码生成器及共享运行基类源码；手写代码仅限本次业务/UI 逻辑，正常资源配置与现成工具生成不受此限制。发现工具缺陷只核实并准确报告，工具开发必须作为另行明确委托的独立任务，不能从本流程顺势扩展。
 
-输出位置由目标项目现行规则、工具持久化配置及已确认的参数确定，本 Skill 不另立固定目录。生成前读取实际 Importer 的 Module Name 与工程 PS Importer 设置，由现成工具的路径规则解析最终位置：
+输出位置由现成工具当前配置及已确认的必需参数确定，其他 Skill 的目录规范不构成重定向依据，本 Skill 不另立固定目录。生成前读取实际 Importer 的 Module Name 与工程 PS Importer 设置，由现成工具的路径规则解析最终位置：
 
 | 产物 | 当前工具配置来源 |
 |---|---|
@@ -107,7 +112,9 @@ Skills
 
 `PLink.Editor.UI.UIPrefabOperationEditor.RefreshUIPrefab(prefabAssetPath, finalPanelCsDirectory, isJustCodeGenerate)`。
 
-先传 `true` 生成，依据新生成的字段与类型完成已确认范围内必要的手写引用迁移、删除引用处理或类型适配，待 Unity 编译通过且生成类型可加载，再传 `false` 刷新。没有引用变化则跳过修复；不能因旧手写代码编译失败而等待绑定通过后才修，也不修改生成文件来恢复旧字段。其余已有功能的差异接入在绑定通过后完成，清单内修复不二次确认。`finalPanelCsDirectory` 是必须已存在的最终面板代码目录，静态方法不会追加面板名；UI 操作窗口选择的是代码父目录，由窗口追加面板名。当前 `RequestScriptCompilation()` 内实际编译请求被注释，不能依赖方法名或一次刷新调用自动等待新类型编译。
+先传 `true` 生成，依据新生成的字段与类型完成已确认清单逐项写明的手写引用迁移、删除引用处理或类型适配。随后通过 Coplay 的最小 Editor 调用执行 `AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport)` 和 `CompilationPipeline.RequestScriptCompilation()`，等待 `EditorApplication.isCompiling` 结束，检查本轮编译错误并确认生成 Mono/Item 类型可加载，再传 `false` 刷新。没有引用变化则跳过手写修复，但仍须主动触发并核实生成文件导入/编译；不能要求用户手动点击 Unity，也不能因旧手写代码编译失败而先刷新绑定。绑定通过后只完成清单已明确的已有功能差异接入，不二次确认；新发现的代码差异、业务行为或作用域必须补清单并取得确认。功能代码修改后再次请求编译，确认类型加载和 Console 无本轮错误，再进入最终审计与运行验证。`finalPanelCsDirectory` 是必须已存在的最终面板代码目录，静态方法不会追加面板名；UI 操作窗口选择的是代码父目录，由窗口追加面板名。当前生成器私有 `RequestScriptCompilation()` 内的 `CompilationPipeline.RequestScriptCompilation()` 已被注释，不能依赖方法名或一次生成调用自动开始/等待编译。
+
+`RefreshUIPrefab(..., false)` 的当前实现会在根层调用 `SetMonoParamVals`，预期把根 RectTransform 归一化为 `position=0`、`rotation=identity`、`localScale=(1,1,1)`、`sizeDelta=(0,0)`、`anchorMin=(0,0)`、`anchorMax=(1,1)`，再保存 Prefab。刷新后必须从保存后的 Prefab 重新读回这些值，并在目标 Canvas 下核验全屏；不能只检查引用数量或 `compiling=false`。根缩放为零、中心固定锚点或设计尺寸仍留在最终根上时，说明刷新、类型加载、保存或后续恢复步骤未正确完成，当前阶段失败。先查实际执行顺序和日志；在已确认 Prefab 调整范围内可恢复根配置，但不得修改 XUGUI/PSUIResolver 源码或让用户手动补点完成流程。
 
 首次生成时使用上述静态入口或 `Tools/Client/UI/UI操作窗口` 明确指定正确目录。仅挂 `UIBasePanelMono` 基类时，Inspector 按类型名定位代码目录会指向基类所在位置；面板专属 Mono 生成并刷新后，再按实际类型使用 Inspector 的按钮。每次执行前核对当前源码，保留目标已有手写文件。
 
